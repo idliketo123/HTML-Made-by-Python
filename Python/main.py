@@ -1,63 +1,50 @@
-import sys
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 import os
+import sys
 import json
-from http.server import HTTPServer, BaseHTTPRequestHandler
+import webbrowser
+from http.server import HTTPServer, SimpleHTTPRequestHandler
 from datetime import datetime
 
-# 配置文件路径
-CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
-LOG_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "log")
+# 跨平台兼容：固定工作目录
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+os.chdir(SCRIPT_DIR)
+if not os.path.exists("log"):
+    os.makedirs("log")
 
-# 初始化默认配置
-DEFAULT_CONFIG = {
-    "html_title": "我的分享页面",
-    "page_title": "欢迎来到我的页面",
-    "title_font_size": 36,
-    "text_font_size": 16,
-    "content_blocks": [],
-    "server_port": 5000
-}
-
+# 加载配置
 def load_config():
-    """加载配置文件，不存在则创建默认配置"""
-    if not os.path.exists(CONFIG_PATH):
-        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-            json.dump(DEFAULT_CONFIG, f, ensure_ascii=False, indent=4)
-    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
+    try:
+        with open("config.json", "r", encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        print("错误：找不到config.json配置文件，请先运行renew.py初始化")
+        sys.exit(1)
+    except json.JSONDecodeError:
+        print("错误：config.json格式损坏，请重新运行renew.py")
+        sys.exit(1)
 
-def generate_html(config):
-    """运行时生成完整HTML（仅生成一次，避免刷新重复生成，满足需求二）"""
-    # 生成内容块HTML
-    content_html = ""
-    for block in config["content_blocks"]:
-        block_type = block["type"]
-        block_content = block["content"]
-        if block_type == "text":
-            content_html += f'<div class="content-block"><p>{block_content}</p></div>\n'
-        elif block_type == "image":
-            content_html += f'<div class="content-block"><img src="{block_content}" alt="图片"></div>\n'
-        elif block_type == "video":
-            content_html += f'<div class="content-block"><video src="{block_content}" controls preload="none" muted></video></div>\n'
-        elif block_type == "link":
-            content_html += f'<div class="content-block">{block_content}</div>\n'
+# 加载网页内容
+def load_content():
+    try:
+        with open("content.html", "r", encoding="utf-8") as f:
+            return f.read()
+    except FileNotFoundError:
+        return ""
 
-    # 完整HTML模板，内置美化CSS与动画（满足需求六）
-    html = f"""
-<!DOCTYPE html>
+# 生成HTML（和参考文件样式完全一致）
+def generate_full_html(config, content):
+    html_template = """<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{config["html_title"]}</title>
+    <title>{page_name}</title>
     <style>
-        * {{
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }}
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
         body {{
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
             min-height: 100vh;
             display: flex;
@@ -65,132 +52,134 @@ def generate_html(config):
             align-items: center;
             padding: 2rem 0;
         }}
-        /* Welcome入场动画 */
         @keyframes welcome {{
-            from {{
-                opacity: 0;
-                transform: translateY(-50px);
-            }}
-            to {{
-                opacity: 1;
-                transform: translateY(0);
-            }}
+            from {{ opacity: 0; transform: translateY(-50px); }}
+            to {{ opacity: 1; transform: translateY(0); }}
         }}
         .welcome-title {{
-            font-size: {config["title_font_size"]}pt;
+            font-size: {title_font_size};
             color: #1e293b;
             text-align: center;
             margin-bottom: 2rem;
             animation: welcome 1s ease-out;
             line-height: 1.2;
         }}
-        .content-block {{
+        .content-block, .resource-box {{
             width: 90%;
             max-width: 800px;
-            background: #ffffff;
+            background: #fff;
             border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
             padding: 1.5rem;
             margin-bottom: 1.5rem;
             transition: transform 0.3s ease, box-shadow 0.3s ease;
         }}
-        .content-block:hover {{
+        .content-block:hover, .resource-box:hover {{
             transform: translateY(-5px);
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.12);
         }}
-        .content-block p {{
-            font-size: {config["text_font_size"]}pt;
+        p {{
+            font-size: {text_font_size};
             line-height: 1.8;
             color: #334155;
             word-break: break-word;
         }}
-        .content-block img {{
-            max-width: 100%;
+        .resource-box img, .resource-box video {{
+            width: 100%;
             height: auto;
+            display: block;
             border-radius: 8px;
-            border: 2px solid #e2e8f0;
-            transition: transform 0.3s ease;
         }}
-        .content-block img:hover {{
-            transform: scale(1.02);
+        video {{ preload: none; muted: true; controls: true; }}
+        a {{ color: #2563eb; text-decoration: none; font-weight: 500; }}
+        a:hover {{ color: #1d4ed8; text-decoration: underline; }}
+        .link-btn {{
+            display: inline-block;
+            padding: 6px 16px;
+            background: #2563eb;
+            color: white !important;
+            border-radius: 6px;
+            margin: 0.5rem 0;
         }}
-        .content-block video {{
-            max-width: 100%;
-            height: auto;
-            border-radius: 8px;
-            border: 2px solid #e2e8f0;
-            transition: transform 0.3s ease;
-        }}
-        .content-block video:hover {{
-            transform: scale(1.02);
-        }}
-        a {{
-            color: #2563eb;
-            text-decoration: none;
-            font-weight: 500;
-            transition: color 0.2s ease;
-        }}
-        a:hover {{
-            color: #1d4ed8;
-            text-decoration: underline;
-        }}
+        .link-btn:hover {{ background: #1d4ed8; text-decoration: none; }}
     </style>
 </head>
 <body>
-    <h1 class="welcome-title">{config["page_title"]}</h1>
-    {content_html}
+    <h1 class="welcome-title">{page_title}</h1>
+    {content}
 </body>
-</html>
-    """
-    return html
+</html>"""
+    return html_template.format(
+        page_name=config.get('html_title', config.get('page_name', '我的分享页面')),
+        page_title=config.get('page_title', '欢迎来到我的页面'),
+        title_font_size=f"{config.get('title_font_size', 36)}pt",
+        text_font_size=f"{config.get('text_font_size', 16)}pt",
+        content=content
+    )
 
-def save_html_backup(html):
-    """保存带时间戳的网页备份"""
-    if not os.path.exists(LOG_FOLDER):
-        os.makedirs(LOG_FOLDER)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_path = os.path.join(LOG_FOLDER, f"page_backup_{timestamp}.html")
-    with open(backup_path, "w", encoding="utf-8") as f:
-        f.write(html)
-    print(f"网页备份已保存至: {backup_path}")
-
-# 全局预生成HTML（运行时仅生成一次）
-PRE_GENERATED_HTML = ""
-
-class RequestHandler(BaseHTTPRequestHandler):
+# 自定义处理器
+class StaticHTMLHandler(SimpleHTTPRequestHandler):
+    def __init__(self, *args, html_content=None, **kwargs):
+        self.html_content = html_content
+        super().__init__(*args, **kwargs)
     def do_GET(self):
-        # 直接返回预生成的HTML，刷新不重复生成
-        self.send_response(200)
-        self.send_header("Content-type", "text/html; charset=utf-8")
-        self.end_headers()
-        self.wfile.write(PRE_GENERATED_HTML.encode("utf-8"))
-    
-    # 禁用终端日志刷屏
+        if self.path in ['/', '/index.html']:
+            self.send_response(200)
+            self.send_header('Content-type', 'text/html; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(self.html_content.encode('utf-8'))
+        else:
+            super().do_GET()
     def log_message(self, format, *args):
         return
 
+# 查找可用端口
+def find_free_port(start_port, max_port=65535):
+    for port in range(start_port, max_port + 1):
+        try:
+            with HTTPServer(("", port), StaticHTMLHandler):
+                return port
+        except OSError:
+            continue
+    print(f"错误：{start_port}-{max_port}无可用端口")
+    sys.exit(1)
+
 def main():
-    global PRE_GENERATED_HTML
+    print("=== 生成完成，启动本地服务 ===")
     config = load_config()
-    # 启动时仅生成一次HTML
-    PRE_GENERATED_HTML = generate_html(config)
-    save_html_backup(PRE_GENERATED_HTML)
-    
-    port = config["server_port"]
+    content = load_content()
+    full_html = generate_full_html(config, content)
+
+    # 保存日志
+    log_time = datetime.now().strftime("%Y%m%d-%H%M%S")
+    log_file = os.path.join("log", f"log_{log_time}.html")
+    with open(log_file, "w", encoding="utf-8") as f:
+        f.write(full_html)
+    print(f"网页已保存到日志文件：{log_file}")
+
+    # 启动服务
+    start_port = config.get('server_port', config.get('port', 5000))
+    port = find_free_port(start_port)
+    server_url = f"http://127.0.0.1:{port}"
+    server_address = ("", port)
+    handler = lambda *args, **kwargs: StaticHTMLHandler(*args, html_content=full_html, **kwargs)
+    httpd = HTTPServer(server_address, handler)
+
+    print(f"\n已运行!请在浏览器访问 {server_url} 进行查看。")
+    print("按 Ctrl+C 停止服务")
+    # 调起浏览器
     try:
-        server = HTTPServer(("0.0.0.0", port), RequestHandler)
-        print(f"服务已启动！")
-        print(f"本地访问地址: http://127.0.0.1:{port}")
-        print(f"局域网访问地址: http://[你的IP]:{port}")
-        print("按 Ctrl+C 停止服务")
-        server.serve_forever()
-    except KeyboardInterrupt:
-        print("\n服务已停止")
-        server.server_close()
-        sys.exit(0)
+        webbrowser.open(server_url)
+        print("已尝试调起浏览器访问页面\n")
     except Exception as e:
-        print(f"启动服务失败: {e}")
-        sys.exit(1)
+        print(f"调起浏览器失败：{str(e)}\n")
+    # 运行服务：无额外捕获，交给startup.py统一处理
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        httpd.server_close()  
+        sys.exit(0)  
+
 
 if __name__ == "__main__":
     main()
