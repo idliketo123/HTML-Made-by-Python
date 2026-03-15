@@ -17,12 +17,17 @@ if not os.path.exists("log"):
 def load_config():
     try:
         with open("config.json", "r", encoding="utf-8") as f:
-            return json.load(f)
+            config = json.load(f)
+        config["port"] = int(config.get("port", 5000))
+        return config
     except FileNotFoundError:
         print("错误：找不到config.json配置文件，请先运行renew.py初始化")
         sys.exit(1)
     except json.JSONDecodeError:
         print("错误：config.json格式损坏，请重新运行renew.py")
+        sys.exit(1)
+    except (ValueError, TypeError):
+        print("错误：config.json中port必须是数字，请检查配置")
         sys.exit(1)
 
 # 加载网页内容
@@ -158,7 +163,7 @@ def main():
     print(f"网页已保存到日志文件：{log_file}")
 
     # 启动服务
-    start_port = config.get('server_port', config.get('port', 5000))
+    start_port = start_port = config['port']
     port = find_free_port(start_port)
     server_url = f"http://127.0.0.1:{port}"
     server_address = ("", port)
