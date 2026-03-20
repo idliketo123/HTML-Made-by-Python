@@ -6,13 +6,11 @@ import json
 import webbrowser
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from datetime import datetime
-
 # 跨平台兼容：固定工作目录
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 os.chdir(SCRIPT_DIR)
 if not os.path.exists("logs"):
     os.makedirs("logs")
-
 # 加载配置
 def load_config():
     try:
@@ -24,7 +22,6 @@ def load_config():
     except json.JSONDecodeError:
         print("错误：config.json格式损坏，请重新运行renew.py")
         sys.exit(1)
-
 # 加载网页内容
 def load_content():
     try:
@@ -32,7 +29,6 @@ def load_content():
             return f.read()
     except FileNotFoundError:
         return ""
-
 # 生成HTML（和参考文件样式完全一致）
 def generate_full_html(config, content):
     html_template = """<!DOCTYPE html>
@@ -116,7 +112,6 @@ def generate_full_html(config, content):
         text_font_size=f"{config.get('text_font_size', 16)}pt",
         content=content
     )
-
 # 自定义处理器
 class StaticHTMLHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, html_content=None, **kwargs):
@@ -132,7 +127,6 @@ class StaticHTMLHandler(SimpleHTTPRequestHandler):
             super().do_GET()
     def log_message(self, format, *args):
         return
-
 # 查找可用端口
 def find_free_port(start_port, max_port=65535):
     for port in range(start_port, max_port + 1):
@@ -143,20 +137,17 @@ def find_free_port(start_port, max_port=65535):
             continue
     print(f"错误：{start_port}-{max_port}无可用端口")
     sys.exit(1)
-
 def main():
     print("=== 生成完成，启动本地服务 ===")
     config = load_config()
     content = load_content()
     full_html = generate_full_html(config, content)
-
     # 保存日志
     log_time = datetime.now().strftime("%Y%m%d-%H%M%S")
     logs_file = os.path.join("logs", f"log_{log_time}.html")
     with open(logs_file, "w", encoding="utf-8") as f:
         f.write(full_html)
     print(f"网页已保存到日志文件：{logs_file}")
-
     # 启动服务
     start_port = config.get('server_port', config.get('port', 5000))
     port = find_free_port(start_port)
@@ -164,13 +155,14 @@ def main():
     server_address = ("", port)
     handler = lambda *args, **kwargs: StaticHTMLHandler(*args, html_content=full_html, **kwargs)
     httpd = HTTPServer(server_address, handler)
-
     print(f"\n已运行!请在浏览器访问 {server_url} 进行查看。")
     print("按 Ctrl+C 停止服务")
     # 调起浏览器
     try:
-        webbrowser.open(server_url)
-        print("已尝试调起浏览器访问页面\n")
+        if os.path.exists('/data/data/com.termux/files/usr/bin/termux-open'):
+            os.system(f'termux-open {server_url}')
+        else:
+            webbrowser.open(server_url)
     except Exception as e:
         print(f"调起浏览器失败：{str(e)}\n")
     # 运行服务：无额外捕获，交给startup.py统一处理
@@ -179,7 +171,5 @@ def main():
     except KeyboardInterrupt:
         httpd.server_close()  
         sys.exit(0)  
-
-
 if __name__ == "__main__":
     main()
