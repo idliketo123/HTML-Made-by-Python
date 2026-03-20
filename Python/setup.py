@@ -23,10 +23,11 @@ def init_environment():
     default_config = {
         "host": "127.0.0.1",
         "port": 5000,
-        "html_title": "我的网页",
-        "page_title": "欢迎来到我的页面",
-        "title_font_size": "32pt",
-        "text_font_size": "14pt"
+        "html_title": "Hello World!",
+        "page_title": "Hello Sekai!",
+        "title_font_size": 36,
+        "text_font_size": 16,
+        "custom_font": None
     }
     if not os.path.exists("config.json"):
         with open("config.json", "w", encoding="utf-8") as f:

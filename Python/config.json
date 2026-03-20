@@ -1,8 +1,9 @@
 {
   "host": "127.0.0.1",
   "port": 5000,
-  "html_title": "我的分享页面",
-  "page_title": "欢迎来到我的页面",
+  "html_title": "Hello World!",
+  "page_title": "Hello Sekai!",
   "title_font_size": 36,
-  "text_font_size": 16
+  "text_font_size": 16,
+  "custom_font": null
 }

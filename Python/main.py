@@ -34,8 +34,23 @@ def load_content():
     except FileNotFoundError:
         return ""
 
-# 生成HTML（调用外部config.css）
+# 生成HTML（调用外部config.css + 动态字体）
 def generate_full_html(config, content):
+    custom_font = config.get("custom_font")
+    font_style = ""
+    if custom_font and os.path.isfile(custom_font):
+        font_style = f'''
+<style>
+@font-face {{
+    font-family: 'CustomFont';
+    src: url('{custom_font}') format('truetype');
+}}
+* {{
+    font-family: 'CustomFont', sans-serif !important;
+}}
+</style>
+'''
+
     html_template = """<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -43,6 +58,7 @@ def generate_full_html(config, content):
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{page_name}</title>
     <link rel="stylesheet" href="config.css">
+    {font_style}
 </head>
 <body>
     <h1 class="welcome-title">{page_title}</h1>
@@ -52,6 +68,7 @@ def generate_full_html(config, content):
     return html_template.format(
         page_name=config.get('html_title', config.get('page_name', '我的分享页面')),
         page_title=config.get('page_title', '欢迎来到我的页面'),
+        font_style=font_style,
         content=content
     )
 

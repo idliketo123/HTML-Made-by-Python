@@ -95,6 +95,7 @@ def manual_input_path(file_type="image"):
             print("文件不存在或不是有效文件，请重新输入")
 
 # 统一获取文件路径
+# 统一获取文件路径
 def get_file_path(file_type="image"):
     print(f"\n正在尝试打开文件选择对话框...")
     file_path = select_file_with_tkinter(file_type)
@@ -102,6 +103,46 @@ def get_file_path(file_type="image"):
         print(f"已选择文件：{file_path}")
         return file_path
     
+    # ================== 新增：tk不可用时，从assets按类型选择 ==================
+    print("\ntkinter不可用，将从 assets 目录选择文件...")
+    assets_dir = os.path.join(SCRIPT_DIR, "assets")
+    if not os.path.exists(assets_dir):
+        os.makedirs(assets_dir)
+
+    # 按类型筛选后缀
+    if file_type == "image":
+        exts = [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"]
+        desc = "图片"
+    elif file_type == "video":
+        exts = [".mp4", ".webm", ".ogg", ".mov"]
+        desc = "视频"
+    else:
+        exts = []
+        desc = "文件"
+
+    # 只扫 assets
+    files = []
+    for f in os.listdir(assets_dir):
+        fp = os.path.join(assets_dir, f)
+        if os.path.isfile(fp) and os.path.splitext(f)[1].lower() in exts:
+            files.append(fp)
+
+    if files:
+        print(f"\nassets 中的 {desc} 文件：")
+        for i, p in enumerate(files):
+            print(f"{i+1}. {os.path.basename(p)}")
+        while True:
+            try:
+                c = input(f"请选择 {desc}（数字）：").strip()
+                if not c:
+                    break
+                idx = int(c)-1
+                if 0 <= idx < len(files):
+                    return files[idx]
+            except ValueError:
+                print("输入无效")
+    # ========================================================================
+
     print("\n正在尝试调起系统文件管理器...")
     fm_success = open_file_manager()
     if fm_success:
